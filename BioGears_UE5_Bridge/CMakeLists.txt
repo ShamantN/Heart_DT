@@ -16,7 +16,7 @@ add_executable(bridge main.cpp)
 
 # 3. Hardcode the path to the BioGears Header Files
 target_include_directories(bridge PRIVATE 
-    "C:/Users/shama/Documents/BioGears_UE5_Bridge/biogears_include"
+    "C:/Users/shama/Documents/Aerospace_Digital_Twin/BioGears_UE5_Bridge/biogears_include"
     "C:/Users/shama/Documents/XSD_TempZip/xsd-4.0.0-i686-windows/libxsd"
     "C:/Users/shama/Documents/Xerces_TempZip/xerces-c-3.2.4/src"
 )
