@@ -75,8 +75,12 @@ from matplotlib.gridspec import GridSpec
 # the animation loop until one arrives. This keeps the Matplotlib event loop
 # responsive and prevents dropped animation frames during low-traffic intervals.
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Enable multi-listener sharing
-sock.bind(("127.0.0.1", 8080))
+# Port 8081 is this script's EXCLUSIVE port.
+# The C++ bridge sends the same payload to BOTH 8080 (UE5) and 8081 (Python),
+# so each consumer has its own port with no contention. This is required on
+# Windows where SO_REUSEADDR does NOT multicast UDP to multiple listeners —
+# it simply lets both processes bind, then delivers each packet to only one.
+sock.bind(("127.0.0.1", 8081))
 sock.setblocking(False)  # Non-blocking so the animation loop never stalls
 
 # =============================================================================

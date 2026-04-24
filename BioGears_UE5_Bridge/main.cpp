@@ -128,24 +128,36 @@ int main() {
     // UDP (SOCK_DGRAM) is chosen over TCP because:
     //   (a) Zero connection overhead — sendto() fires and forgets, keeping
     //       latency minimal at 10 Hz broadcast frequency.
-    //   (b) Broadcast semantics — one sendto() reaches ALL listeners on
-    //       port 8080 simultaneously (Python + UE5) with no pairing needed.
-    //   (c) Loss-tolerant — dropping one 100ms telemetry frame causes a
+    //   (b) Loss-tolerant — dropping one 100ms telemetry frame causes a
     //       cosmetic gap on the graph, not a connection failure or stall.
+    //
+    // WHY TWO SOCKETS (8080 AND 8081):
+    //   On Windows, SO_REUSEADDR for UDP does NOT deliver a copy of each
+    //   packet to every bound listener. Instead, Windows picks ONE recipient
+    //   per packet — whichever process bound most recently wins, starving
+    //   the other. To allow BOTH Unreal Engine 5 (port 8080) and the Python
+    //   dashboard (port 8081) to receive telemetry simultaneously, we send
+    //   the same payload to two separate destination ports. Each consumer
+    //   binds exclusively to its own port with no contention.
 
     WSADATA wsaData;
     // Initialize the Winsock DLL. MAKEWORD(2,2) requests Winsock v2.2.
     WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    // Create a connectionless UDP socket.
+    // Create a single UDP socket (reused for both sendto() calls).
     SOCKET udpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-    // Set destination: localhost 127.0.0.1:8080.
-    // htons() converts the port to network byte order (big-endian).
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port   = htons(8080);
-    inet_pton(AF_INET, "127.0.0.1", &serverAddress.sin_addr);
+    // Destination 1: Unreal Engine 5 Blueprint UDP receiver — port 8080
+    sockaddr_in ue5Address;
+    ue5Address.sin_family = AF_INET;
+    ue5Address.sin_port   = htons(8080);
+    inet_pton(AF_INET, "127.0.0.1", &ue5Address.sin_addr);
+
+    // Destination 2: Python Mission Control Dashboard — port 8081
+    sockaddr_in pythonAddress;
+    pythonAddress.sin_family = AF_INET;
+    pythonAddress.sin_port   = htons(8081);
+    inet_pton(AF_INET, "127.0.0.1", &pythonAddress.sin_addr);
 
     // =====================================================================
     // SECTION 2: CSV LOG INITIALIZATION
@@ -344,8 +356,14 @@ int main() {
                               ",\"SV\":"   + std::to_string(sv)   +
                               ",\"SPO2\":" + std::to_string(spo2) + "}";
 
+        // Send to UE5 (port 8080)
         sendto(udpSocket, payload.c_str(), (int)payload.length(), 0,
-               (SOCKADDR*)&serverAddress, sizeof(serverAddress));
+               (SOCKADDR*)&ue5Address, sizeof(ue5Address));
+
+        // Send the identical payload to the Python dashboard (port 8081).
+        // Both consumers now receive every frame independently with no contention.
+        sendto(udpSocket, payload.c_str(), (int)payload.length(), 0,
+               (SOCKADDR*)&pythonAddress, sizeof(pythonAddress));
 
         // =====================================================================
         // SECTION 9: CONSOLE STATUS ECHO
