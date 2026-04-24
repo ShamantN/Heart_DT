@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.7",
+	"Category": "",
+	"Description": "",
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "JsonBlueprintUtilities",
+			"Enabled": true
+		},
+		{
+			"Name": "EasyUDP",
+			"Enabled": true
+		},
+		{
+			"Name": "SuperTool",
+			"Enabled": true,
+			"MarketplaceURL": "https://fab.com/s/8cc2582d9a39"
+		}
+	]
+}

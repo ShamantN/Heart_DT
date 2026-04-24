@@ -1,0 +1,160 @@
+/**************************************************************************************
+Copyright 2015 Applied Research Associates, Inc.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the License
+at:
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+**************************************************************************************/
+
+#pragma once
+#include <biogears/cdm/CommonDataModel.h>
+#include <biogears/exports.h>
+
+#include <biogears/cdm/enums/SEEnvironmentEnums.h>
+
+#include <random>
+
+#include <biogears/cdm/properties/SEScalarMassPerVolume.h>
+#include <biogears/cdm/properties/SEScalarLengthPerTime.h>
+#include <biogears/cdm/properties/SEScalarTemperature.h>
+#include <biogears/cdm/properties/SEScalarHeatResistanceArea.h>
+#include <biogears/cdm/properties/SEScalarPressure.h>
+
+namespace biogears {
+class SESubstance;
+class SESubstanceDefinition;
+class SESubstanceFraction;
+class SESubstanceConcentration;
+class SEEnvironment;
+class SESubstanceManager;
+class SEEnvironmentChange;
+class SEInitialEnvironment;
+
+class SEScalar;
+class SEScalarFraction;
+
+namespace io {
+  class Environment;
+}
+
+class BIOGEARS_API SEEnvironmentalConditions : public Loggable {
+protected:
+  friend SEEnvironment;
+  friend SEEnvironmentChange;
+  friend SEInitialEnvironment;
+  friend io::Environment;
+
+public:
+  SEEnvironmentalConditions(SESubstanceManager& substances);
+  virtual ~SEEnvironmentalConditions();
+
+  void Invalidate();
+  bool IsValid() const;
+
+  bool operator==(SEEnvironmentalConditions const& rhs) const;
+  bool operator!=(SEEnvironmentalConditions const& rhs) const;
+
+  bool Load(const char* environmentFile);
+  bool Load(const std::string& environmentFile);
+
+  const SEScalar* GetScalar(const char* name);
+  const SEScalar* GetScalar(const std::string& name);
+
+  std::string GetName() const;
+  const char* GetName_cStr() const;
+  void SetName(const char* name);
+  void SetName(const std::string& name);
+  bool HasName() const;
+  void InvalidateName();
+
+  SESurroundingType GetSurroundingType() const;
+  void SetSurroundingType(SESurroundingType name);
+  bool HasSurroundingType() const;
+  void InvalidateSurroundingType();
+
+  bool HasAirDensity() const;
+  SEScalarMassPerVolume& GetAirDensity();
+  double GetAirDensity(const MassPerVolumeUnit& unit) const;
+
+  bool HasAirVelocity() const;
+  SEScalarLengthPerTime& GetAirVelocity();
+  double GetAirVelocity(const LengthPerTimeUnit& unit) const;
+
+  bool HasAmbientTemperature() const;
+  SEScalarTemperature& GetAmbientTemperature();
+  double GetAmbientTemperature(const TemperatureUnit& unit) const;
+
+  bool HasAtmosphericPressure() const;
+  SEScalarPressure& GetAtmosphericPressure();
+  double GetAtmosphericPressure(const PressureUnit& unit) const;
+
+  bool HasClothingResistance() const;
+  SEScalarHeatResistanceArea& GetClothingResistance();
+  double GetClothingResistance(const HeatResistanceAreaUnit& unit) const;
+
+  bool HasEmissivity() const;
+  SEScalarFraction& GetEmissivity();
+  double GetEmissivity() const;
+
+  bool HasMeanRadiantTemperature() const;
+  SEScalarTemperature& GetMeanRadiantTemperature();
+  double GetMeanRadiantTemperature(const TemperatureUnit& unit) const;
+
+  bool HasRelativeHumidity() const;
+  SEScalarFraction& GetRelativeHumidity();
+  double GetRelativeHumidity() const;
+
+  bool HasRespirationAmbientTemperature() const;
+  SEScalarTemperature& GetRespirationAmbientTemperature();
+  double GetRespirationAmbientTemperature(const TemperatureUnit& unit) const;
+
+  bool HasAmbientGas() const;
+  bool HasAmbientGas(SESubstanceDefinition const& substance) const;
+  const std::vector<SESubstanceFraction*>& GetAmbientGases();
+  const std::vector<const SESubstanceFraction*>& GetAmbientGases() const;
+  SESubstanceFraction& GetAmbientGas(SESubstanceDefinition const& substance);
+  const SESubstanceFraction* GetAmbientGas(SESubstanceDefinition const& substance) const;
+  void AddAmbientGas(SESubstanceDefinition const& substance, SEScalarFraction const& concentration);
+  void RemoveAmbientGas(SESubstanceDefinition const& substance);
+  void RemoveAmbientGases();
+
+  bool HasAmbientAerosol() const;
+  bool HasAmbientAerosol(SESubstanceDefinition const& substance) const;
+  const std::vector<SESubstanceConcentration*>& GetAmbientAerosols();
+  const std::vector<const SESubstanceConcentration*>& GetAmbientAerosols() const;
+  SESubstanceConcentration& GetAmbientAerosol(SESubstanceDefinition const& substance);
+  const SESubstanceConcentration* GetAmbientAerosol(SESubstanceDefinition const& substance) const;
+  void AddAmbientAerosol(SESubstanceDefinition const& substance, SEScalarMassPerVolume const& concentration);
+  void RemoveAmbientAerosol(SESubstanceDefinition const& substance);
+  void RemoveAmbientAerosols();
+
+protected:
+  void Merge(const SEEnvironmentalConditions& from);
+
+protected:
+  SESurroundingType m_SurroundingType;
+
+  std::string m_Name;
+  SEScalarMassPerVolume* m_AirDensity;
+  SEScalarLengthPerTime* m_AirVelocity;
+  SEScalarTemperature* m_AmbientTemperature;
+  SEScalarPressure* m_AtmosphericPressure;
+  SEScalarHeatResistanceArea* m_ClothingResistance;
+  SEScalarFraction* m_Emissivity;
+  SEScalarTemperature* m_MeanRadiantTemperature;
+  SEScalarFraction* m_RelativeHumidity;
+  SEScalarTemperature* m_RespirationAmbientTemperature;
+
+  std::vector<SESubstanceFraction*> m_AmbientGases;
+  std::vector<const SESubstanceFraction*> m_cAmbientGases;
+
+  std::vector<SESubstanceConcentration*> m_AmbientAerosols;
+  std::vector<const SESubstanceConcentration*> m_cAmbientAerosols;
+
+  SESubstanceManager& m_Substances;
+};
+}

@@ -1,0 +1,19 @@
+# --- C++ Junk ---
+build/
+out/
+.cmake/
+*.exe
+*.obj
+*.pdb
+*.log
+Flight_Telemetry.csv
+__pycache__/
+
+# --- Unreal Engine 5 Junk ---
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+*.sln
+*.suo
