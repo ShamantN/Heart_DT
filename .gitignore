@@ -17,3 +17,16 @@ Saved/
 Build/
 *.sln
 *.suo
+
+# --- UE5 Test Levels (not part of this project) ---
+Heart_Digital_Twin/Content/test1.umap
+Heart_Digital_Twin/Content/test1_HLOD0_Instancing.uasset
+Heart_Digital_Twin/Content/test99.umap
+Heart_Digital_Twin/Content/test99_HLOD0_Instancing.uasset
+Heart_Digital_Twin/Content/__ExternalActors__/test1/
+Heart_Digital_Twin/Content/__ExternalActors__/test99/
+Heart_Digital_Twin/Content/__ExternalObjects__/test1/
+Heart_Digital_Twin/Content/__ExternalObjects__/test99/
+
+# --- COMSOL ---
+*.mph.lock

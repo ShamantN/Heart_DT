@@ -3,13 +3,15 @@
 ![C++](https://img.shields.io/badge/C++-20-blue?logo=cplusplus&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.10+-yellow?logo=python&logoColor=white)
 ![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.3-black?logo=unrealengine&logoColor=white)
+![COMSOL](https://img.shields.io/badge/COMSOL-6.3-orange)
 ![BioGears](https://img.shields.io/badge/BioGears-7.x-red)
 ![Platform](https://img.shields.io/badge/Platform-Windows-informational?logo=windows)
 ![License](https://img.shields.io/badge/License-Academic%20Use-lightgrey)
 
 > A real-time human physiology simulation of a rocket launch and long-duration spaceflight,
-> built by bridging the **BioGears C++ Physiology Engine** with a **Python Mission Control Dashboard**
-> and an **Unreal Engine 5** anatomical visualizer — connected live over UDP telemetry.
+> built by bridging the **BioGears C++ Physiology Engine** with a **Python Mission Control Dashboard**,
+> an **Unreal Engine 5** anatomical visualizer, and a **COMSOL Multiphysics 6.3** reduced-order
+> structural heart twin.
 
 ---
 
@@ -30,6 +32,11 @@ saturation — live, in real time — without requiring custom engine modificati
 
 Telemetry is broadcast over UDP to a 4-panel Python Matplotlib dashboard and an Unreal Engine 5
 scene simultaneously, demonstrating a multi-consumer, real-time bio-data pipeline.
+
+In parallel, a **COMSOL Multiphysics 6.3** structural twin is being developed as an offline/
+reduced-order mechanics layer. This module converts chamber-level physiology into wall motion,
+strain, and stress fields for the heart geometry, creating exportable morph targets and scalar
+fields that can be reused in Unreal Engine 5 for higher-fidelity visualization.
 
 ---
 
@@ -99,6 +106,7 @@ occasional packet loss causes a cosmetic one-frame gap, not a system failure.
 | **Visual Studio** | 2019 or 2022 | MSVC C++20 toolchain (Community edition sufficient) |
 | **Python** | ≥ 3.10 | For the live dashboard |
 | **matplotlib** | ≥ 3.7 | `pip install matplotlib` |
+| **COMSOL Multiphysics** | 6.3 | Optional — used for the structural heart twin |
 | **Unreal Engine** | 5.3 | Optional — only required for 3D visualization |
 
 ### Critical: BioGears Windows SDK
@@ -226,6 +234,206 @@ Time(s),HeartRate(BPM),StrokeVolume(mL),SpO2(%),MissionPhase
 This file can be analyzed with pandas, Excel, or MATLAB to generate publication-quality plots
 of the full physiological trajectory.
 
+
+---
+
+## COMSOL Multiphysics 6.3 Structural Twin (Current Work)
+
+Alongside the live BioGears → Python → UE5 telemetry path, a reduced-order **COMSOL 6.3** heart
+mechanics model is being assembled to translate physiologic state variables into geometric
+deformation, wall stress, and exportable morph targets.
+
+### Objective
+
+The COMSOL model is not intended to replace BioGears. Instead, it acts as a **mechanics translator**
+between physiology and visualization:
+
+- **BioGears / assumed physiology** provides scalar mission-state inputs such as heart rate (HR),
+  stroke volume (SV), oxygen saturation (SpO2), preload loss, and scenario phase.
+- **COMSOL** converts those scenario inputs into chamber-wall motion, displacement magnitude, and
+  wall stress/strain fields on the heart geometry.
+- **Unreal Engine 5** consumes exported deformed meshes and scalar data for animation, material
+  effects, and gamified visualization.
+
+### Current Geometry Pipeline Completed
+
+The current COMSOL build uses the Zenodo whole-heart surface dataset and the following chamber
+surfaces:
+
+- `epicard`
+- `cavityLV`
+- `cavityRV`
+- `cavityLA`
+- `cavityRA`
+
+Current implementation status:
+
+1. The heart surfaces were imported into COMSOL and, for robustness during CAD operations,
+   converted into **STEP-based solids** for the working model.
+2. A **Boolean Difference** was used to subtract the four chamber cavities from the epicardial
+   shell.
+3. **Form Union** was then used to finalize the geometry.
+4. The finalized structural model contains:
+   - **1 myocardium domain**
+   - **4 finite voids** corresponding to the LV, RV, LA, and RA cavities
+
+This is the key milestone that turns the original surface dataset into a usable structural shell.
+
+### Boundary Operators and Variables Added
+
+Four **Integration** nonlocal couplings were created under **Component → Definitions**:
+
+- `int_LV`
+- `int_RV`
+- `int_LA`
+- `int_RA`
+
+These are used to compute chamber-surface areas through expressions of the form:
+
+```text
+A_LV = int_LV(1)
+A_RV = int_RV(1)
+A_LA = int_LA(1)
+A_RA = int_RA(1)
+```
+
+The model variables now include:
+
+```text
+u_LV = -(dVpre_LV + phase*SV)/A_LV
+u_RV = -(dVpre_RV + phase*SV)/A_RV
+u_LA = -(0.2*dVpre_LV + phase*dVat)/A_LA
+u_RA = -(0.2*dVpre_RV + phase*dVat)/A_RA
+BeatHz   = HR/60[1/s]
+ContrIdx = SV/70[ml]
+HypoxIdx = max(0,(98-SpO2)/10)
+```
+
+These variables provide the first reduced-order mapping from mission physiology to chamber-wall
+displacement.
+
+### Structural Stabilization Method Used
+
+The initial plan assumed dedicated support surfaces such as `outerTrunks` and `outerPeri`.
+Because the current working model was built first from only the epicardium and chamber cavities,
+the support strategy was changed to a **manual 3–2–1 anti-rigid-body method**.
+
+The active stabilization scheme is:
+
+- **P1** on the outer epicardium above the LA region:
+  - `u = 0, v = 0, w = 0`
+- **P2** on the outer epicardium near the RA side:
+  - two constrained directions only
+- **P3** on the outer epicardium above-left of the LV side:
+  - one constrained direction only
+
+In COMSOL this is implemented with **point-level Prescribed Displacement** nodes, not boundary
+fixes, so that rigid-body motion is suppressed without freezing a large portion of the heart wall.
+
+### Chamber-Wall Motion Strategy
+
+The chamber motion itself is applied with **boundary-level Prescribed Displacement** nodes on:
+
+- LV cavity wall
+- RV cavity wall
+- LA cavity wall
+- RA cavity wall
+
+A **Boundary System** / local boundary frame is used so that displacement is prescribed along the
+local wall normal while the tangential directions remain free. This avoids locking the wall in
+unphysical Cartesian directions.
+
+### Scenario Logic Implemented
+
+The COMSOL model is organized around two scenario parameters:
+
+- `case`
+- `phase`
+
+Current intended values are:
+
+- `case = 0` → Earth baseline
+- `case = 1` → adapted microgravity (~48 h)
+- `case = 2` → chronic microgravity / deconditioning
+- `case = 3` → optional launch visual mode / +3Gz
+
+and
+
+- `phase = 0` → ED-like state
+- `phase = 1` → ES-like state
+
+This lets the model generate paired morph states for each mission condition without requiring a
+full electrophysiology solve.
+
+### Planned Solve / Output Workflow
+
+The working COMSOL solve path is:
+
+1. Build the tetrahedral mesh on the single myocardium domain
+2. Add a **Parametric Sweep** over:
+   - `case = 0 1 2`
+   - `phase = 0 1`
+3. Enable **geometric nonlinearity** if the displacement field becomes large
+4. Evaluate:
+   - `solid.disp`
+   - `solid.mises`
+   - global `BeatHz`, `ContrIdx`, `HypoxIdx`
+5. Export:
+   - nodal CSV field data
+   - deformed STL meshes for UE5 morph targets
+
+### UE5-Oriented Export Targets
+
+The COMSOL twin is being set up specifically to feed Unreal Engine with reusable assets:
+
+- **Deformed STL meshes** for:
+  - Earth ED-like
+  - Earth ES-like
+  - microgravity ED-like
+  - microgravity ES-like
+- **CSV nodal fields** containing:
+  - `x, y, z`
+  - `u, v, w`
+  - `solid.disp`
+  - `solid.mises`
+- **Global scenario scalars** such as:
+  - `BeatHz`
+  - `ContrIdx`
+  - `HypoxIdx`
+
+These outputs align directly with a UE5 pipeline that blends morph targets, adjusts heartbeat
+frequency, drives material color change from oxygenation/hypoxia proxies, and overlays stress-like
+visual effects.
+
+### Important Implementation Notes
+
+- The current COMSOL model is a **reduced-order structural twin**, not yet a full cardiac
+  electromechanics model.
+- `Rigid Motion Suppression` was treated only as a temporary setup aid; the final manual support
+  method uses the **3–2–1 point constraint strategy**.
+- Large fixed boundary patches are intentionally avoided, because over-constraining the epicardium
+  makes the heart motion look artificially stiff.
+- The long-term upgrade path is to replace the kinematic wall-motion prescription with:
+  - volumetric mesh import
+  - fiber orientation
+  - active stress/strain laws
+  - chamber pressure waveforms
+  - tighter coupling to BioGears outputs
+
+### Current Development Status
+
+The project now consists of **two connected layers**:
+
+1. **Live physiology layer (completed and running)**  
+   BioGears → Python dashboard → Unreal Engine UDP visualization
+
+2. **Structural mechanics layer (working WIP)**  
+   COMSOL geometry shell, cavity operators, reduced-order wall motion logic, and manual 3–2–1
+   stabilization for future stress/strain export into UE5
+
+This means the digital twin has already progressed beyond a pure telemetry demo and now includes
+the first practical steps toward a mechanics-aware heart visualization pipeline.
+
 ---
 
 ## Repository Structure
@@ -249,6 +457,10 @@ Aerospace_Digital_Twin/
 ├── .gitignore                    # Excludes build artifacts, BioGears logs, CSV output
 └── README.md                     # This file
 ```
+
+> **Local development note:** a working `Heart Digital Twin.mph` COMSOL model is also used during
+> development for the reduced-order structural twin, but it may remain outside version control due
+> to file size and iterative experimentation.
 
 ---
 
